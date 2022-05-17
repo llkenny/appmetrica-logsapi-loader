@@ -37,8 +37,11 @@ class StateJSONEncoder(JSONEncoder):
             return o.strftime(DATE_FORMAT)
         elif isinstance(o, AppIdState):
             date_updates = dict()
-            for d, dt in o.date_updates.items():
-                date_updates[d.strftime(DATE_FORMAT)] = dt
+            for e, event in o.date_updates.items():
+                event_updates = dict()
+                for d, dt in event.items():
+                    event_updates[d.strftime(DATE_FORMAT)] = dt
+                date_updates[e] = event_updates
             return {
                 "app_id": o.app_id,
                 "date_updates": date_updates,
@@ -52,11 +55,14 @@ class StateJSONEncoder(JSONEncoder):
 
 def _parse_date_updates(json_object: Dict[str, Any]):
     date_updates = dict()
-    for target_date_str, update_ts in json_object.items():
-        target_dt = datetime.strptime(target_date_str, DATE_FORMAT)
-        target_date = target_dt.date()
-        update_dt = _from_unix_time(update_ts)
-        date_updates[target_date] = update_dt
+    for e, event in json_object.items():
+        event_updates = dict()
+        for target_date_str, update_ts in event.items():
+            target_dt = datetime.strptime(target_date_str, DATE_FORMAT)
+            target_date = target_dt.date()
+            update_dt = _from_unix_time(update_ts)
+            event_updates[target_date] = update_dt
+        date_updates[e] = event_updates
     return date_updates
 
 

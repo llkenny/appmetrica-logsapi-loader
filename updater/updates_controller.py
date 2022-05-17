@@ -33,19 +33,20 @@ class UpdatesController(object):
         self._sources_collection = sources_collection
         self._db_controllers_collection = db_controllers_collection
 
-    def _load_into_table(self, app_id: str, date: Optional[datetime.date],
+    def _load_into_table(self, app_id: str, date: Optional[datetime.date], event_name: str,
                          table_suffix: str,
                          processing_definition: ProcessingDefinition,
                          loading_definition: LoadingDefinition,
                          db_controller: DbController):
-        logger.info('Loading "{date}" into "{suffix}" of "{source}" '
+        logger.info('Loading "{date}" "{event_name}" into "{suffix}" of "{source}" '
                     'for "{app_id}"'.format(
             date=date or 'latest',
+            event_name=event_name,
             source=loading_definition.source_name,
             app_id=app_id,
             suffix=table_suffix
         ))
-        self._updater.update(app_id, date, table_suffix, db_controller,
+        self._updater.update(app_id, date, event_name, table_suffix, db_controller,
                              processing_definition, loading_definition)
 
     def _archive(self, source: str, app_id: str, date: datetime.date,
@@ -60,6 +61,7 @@ class UpdatesController(object):
     def _update(self, update_request: UpdateRequest):
         source = update_request.source
         app_id = update_request.app_id
+        event_name = update_request.event_name
         date = update_request.date
         update_type = update_request.update_type
         if date is not None:
@@ -75,13 +77,13 @@ class UpdatesController(object):
             self._db_controllers_collection.db_controller(source)
 
         if update_type == UpdateRequest.LOAD_ONE_DATE:
-            self._load_into_table(app_id, date, table_suffix,
+            self._load_into_table(app_id, date, event_name, table_suffix,
                                   processing_definition, loading_definition,
                                   db_controller)
         elif update_type == UpdateRequest.ARCHIVE:
             self._archive(source, app_id, date, table_suffix, db_controller)
         elif update_type == UpdateRequest.LOAD_DATE_IGNORED:
-            self._load_into_table(app_id, None, table_suffix,
+            self._load_into_table(app_id, None, None, table_suffix,
                                   processing_definition, loading_definition,
                                   db_controller)
 

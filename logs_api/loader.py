@@ -76,6 +76,7 @@ class Loader(object):
              date_since: Optional[datetime.datetime],
              date_until: Optional[datetime.datetime],
              date_dimension: Optional[str],
+             event_name: str,
              parts_count: int = 1) \
             -> Generator[DataFrame, None, None]:
         part_number = 0
@@ -89,6 +90,7 @@ class Loader(object):
                                                 date_since=date_since,
                                                 date_until=date_until,
                                                 date_dimension=date_dimension,
+                                                event_name=event_name,
                                                 parts_count=parts_count,
                                                 part_number=part_number,
                                                 force_recreate=force_recreate)

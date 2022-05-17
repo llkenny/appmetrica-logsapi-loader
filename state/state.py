@@ -21,7 +21,7 @@ class AppIdState(object):
     ]
 
     def __init__(self, app_id: str,
-                 date_updates: Optional[Dict[date, datetime]] = None):
+                 date_updates: Optional[Dict[str, Optional[Dict[date, datetime]]]] = None):
         self.app_id = app_id
         self.date_updates = date_updates or dict()
 

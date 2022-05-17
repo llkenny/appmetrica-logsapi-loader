@@ -67,14 +67,17 @@ class Updater(object):
               date_from: Optional[datetime.datetime],
               date_to: Optional[datetime.datetime],
               date_dimension: Optional[str],
+              event_name: str,
               parts_count: int):
         df_it = self._loader.load(app_id, loading_definition.source_name,
                                   loading_definition.fields,
                                   date_from, date_to, date_dimension,
+                                  event_name,
                                   parts_count)
         return df_it
 
     def _try_update(self, app_id: str, since: datetime, until: datetime,
+                    event_name: str,
                     table_suffix: str, parts_count: int,
                     db_controller: DbController,
                     processing_definition: ProcessingDefinition,
@@ -82,14 +85,14 @@ class Updater(object):
         db_controller.recreate_table(table_suffix)
 
         df_it = self._load(app_id, loading_definition, since, until,
-                           LogsApiClient.DATE_DIMENSION_CREATE, parts_count)
+                           LogsApiClient.DATE_DIMENSION_CREATE, event_name, parts_count)
         for df in df_it:
             logger.debug("Start processing data chunk")
             upload_df = self._process_data(app_id, df,
                                            processing_definition)
             db_controller.insert_data(upload_df, table_suffix)
 
-    def update(self, app_id: str, date: Optional[datetime.date],
+    def update(self, app_id: str, date: Optional[datetime.date], event_name: str,
                table_suffix: str, db_controller: DbController,
                processing_definition: ProcessingDefinition,
                loading_definition: LoadingDefinition):
@@ -102,7 +105,7 @@ class Updater(object):
         is_loading_completed = False
         while not is_loading_completed:
             try:
-                self._try_update(app_id, since, until, table_suffix,
+                self._try_update(app_id, since, until, event_name, table_suffix,
                                  parts_count, db_controller,
                                  processing_definition, loading_definition)
                 is_loading_completed = True
