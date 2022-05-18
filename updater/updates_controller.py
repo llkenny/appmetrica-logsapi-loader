@@ -58,6 +58,9 @@ class UpdatesController(object):
         ))
         db_controller.archive_table(table_suffix)
 
+    def _prepare_temporary_table(self, table_suffix, db_controller):
+        db_controller.recreate_table(table_suffix)
+
     def _update(self, update_request: UpdateRequest):
         source = update_request.source
         app_id = update_request.app_id
@@ -86,6 +89,8 @@ class UpdatesController(object):
             self._load_into_table(app_id, None, None, table_suffix,
                                   processing_definition, loading_definition,
                                   db_controller)
+        elif update_type == UpdateRequest.PREPARE_DAILY_TABLE:
+            self._prepare_temporary_table(table_suffix, db_controller)
 
     def _step(self):
         update_requests = self._scheduler.update_requests()

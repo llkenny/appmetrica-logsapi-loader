@@ -82,8 +82,6 @@ class Updater(object):
                     db_controller: DbController,
                     processing_definition: ProcessingDefinition,
                     loading_definition: LoadingDefinition):
-        db_controller.recreate_table(table_suffix)
-
         df_it = self._load(app_id, loading_definition, since, until,
                            LogsApiClient.DATE_DIMENSION_CREATE, event_name, parts_count)
         for df in df_it:

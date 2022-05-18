@@ -27,6 +27,7 @@ class UpdateRequest(object):
     ARCHIVE = 'archive'
     LOAD_ONE_DATE = 'load_one_date'
     LOAD_DATE_IGNORED = 'load_date_ignored'
+    PREPARE_DAILY_TABLE = 'prepare_daily_table' # Daily temporary table
 
     def __init__(self, source: str, event_name: str, app_id: str, p_date: Optional[date],
                  update_type: str):
@@ -120,7 +121,7 @@ class Scheduler(object):
     def _archive_old_dates(self, app_id_state: AppIdState):
         for event_name, event in app_id_state.date_updates.items():
             for p_date, updated_at in event.items():
-                if self._is_date_archived(app_id_state, p_date):
+                if self._is_date_archived(app_id_state, event_name, p_date):
                     continue
                 last_event_date = datetime.combine(p_date, time.max)
                 fresh = updated_at - last_event_date < self._fresh_limit
@@ -161,6 +162,12 @@ class Scheduler(object):
             yield UpdateRequest(source, None, app_id, None,
                                 UpdateRequest.LOAD_DATE_IGNORED)
 
+    def _prepare_temporary_table(self, app_id_state: AppIdState, p_date: date):
+        sources = self._definition.date_required_sources
+        for source in sources:
+            yield UpdateRequest(source, None, app_id_state.app_id, p_date,
+                                UpdateRequest.PREPARE_DAILY_TABLE)
+
     def update_requests(self) \
             -> Generator[UpdateRequest, None, None]:
         self._load_state()
@@ -175,10 +182,13 @@ class Scheduler(object):
             for update_request in updates:
                 yield update_request
 
-            for event_name in self._event_names:
-                logger.debug('Logging event: {}'.format(event_name))
-                for pd_date in pd.date_range(date_from, date_to):
+            for pd_date in pd.date_range(date_from, date_to):
+                updates = self._prepare_temporary_table(app_id_state, pd_date)
+                for update_request in updates:
+                    yield update_request
+                for event_name in self._event_names:
                     p_date = pd_date.to_pydatetime().date()  # type: date
+                    logger.debug('Logging event: {} date: {}'.format(event_name, p_date))
                     updates = self._update_date(event_name, app_id_state, p_date, started_at)
                     for update_request in updates:
                         yield update_request
