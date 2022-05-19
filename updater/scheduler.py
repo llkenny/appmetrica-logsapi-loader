@@ -194,13 +194,13 @@ class Scheduler(object):
             -> Generator[UpdateRequest, None, None]:
         self._load_state()
         self._wait_if_needed()
-        started_at = datetime.now()
+        started_at = datetime.combine(datetime.now(), time.min)
         for app_id in self._app_ids:
             app_id_state = self._get_or_create_app_id_state(app_id)
 
             # Load limit dates
             update_date_until = started_at.date() - self._fresh_limit
-            update_date_since = update_date_until - self._update_limit - self._fresh_limit
+            update_date_since = update_date_until - self._update_limit
             updates = self._update_dates_requests(app_id_state, update_date_until, update_date_since, started_at)
             for update_request in updates:
                 yield update_request

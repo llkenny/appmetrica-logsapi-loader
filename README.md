@@ -1,6 +1,7 @@
 # AppMetrica LogsAPI Loader
 
 Python-script for automatic loading from AppMetrica LogsAPI into local ClickHouse DB. And yes, there is a Docker container too.
+Current version (branch): Loading a range of dates.
 
 ## How to use this image
 
@@ -54,7 +55,7 @@ All configuration properties can be passed through environment variables.
 
 #### Scheduling configuration
 * `UPDATE_LIMIT` - Count of days for the first events fetch. (default: `30`)
-* `FRESH_LIMIT` - Count of days which still can have new events. (default: `7`)
+* `UPDATE_LIMIT_UNTIL` - Count of days for stop the events fetch. (default: `7`)
 * `UPDATE_INTERVAL` - Interval of time in hours between events fetches from Logs API. (default: `12`)
 
 #### Other variables

@@ -30,7 +30,7 @@ SOURCES = json.loads(environ.get('SOURCES', '[]'))  # empty == all
 EVENT_NAMES = json.loads(environ.get('EVENT_NAMES', '[]')) # empty = no events
 
 UPDATE_LIMIT = timedelta(days=int(environ.get('UPDATE_LIMIT', '30')))
-FRESH_LIMIT = timedelta(days=int(environ.get('FRESH_LIMIT', '7')))
+UPDATE_LIMIT_UNTIL = timedelta(days=int(environ.get('UPDATE_LIMIT_UNTIL', '7')))
 UPDATE_INTERVAL = timedelta(hours=int(environ.get('UPDATE_INTERVAL', '12')))
 REQUEST_CHUNK_ROWS = int(environ.get('REQUEST_CHUNK_ROWS', '25000'))
 
