@@ -70,6 +70,7 @@ class LogsApiClient(object):
                         date_since: Optional[datetime.datetime],
                         date_until: Optional[datetime.datetime],
                         date_dimension: Optional[str],
+                        event_name: str,
                         parts_count: int,
                         part_number: int,
                         force_recreate: bool):
@@ -88,6 +89,10 @@ class LogsApiClient(object):
                 'date_since': date_since.strftime(date_format),
                 'date_until': date_until.strftime(date_format),
                 'date_dimension': date_dimension or self.DATE_DIMENSION_CREATE,
+            })
+        if event_name:
+            params.update({
+                'event_name': event_name
             })
         if parts_count > 1:
             params.update({

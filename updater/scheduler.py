@@ -27,10 +27,12 @@ class UpdateRequest(object):
     ARCHIVE = 'archive'
     LOAD_ONE_DATE = 'load_one_date'
     LOAD_DATE_IGNORED = 'load_date_ignored'
+    PREPARE_DAILY_TABLE = 'prepare_daily_table' # Daily temporary table
 
-    def __init__(self, source: str, app_id: str, p_date: Optional[date],
+    def __init__(self, source: str, event_name: str, app_id: str, p_date: Optional[date],
                  update_type: str):
         self.source = source
+        self.event_name = event_name
         self.app_id = app_id
         self.date = p_date
         self.update_type = update_type
@@ -41,11 +43,12 @@ class Scheduler(object):
 
     def __init__(self, state_storage: StateStorage,
                  scheduling_definition: SchedulingDefinition,
-                 app_ids: List[str], update_limit: timedelta,
+                 app_ids: List[str], event_names: List[str], update_limit: timedelta,
                  update_interval: timedelta, fresh_limit: timedelta):
         self._state_storage = state_storage
         self._definition = scheduling_definition
         self._app_ids = app_ids
+        self._event_names = event_names
         self._update_limit = update_limit
         self._update_interval = update_interval
         self._fresh_limit = fresh_limit
@@ -67,23 +70,30 @@ class Scheduler(object):
             app_id_state = app_id_states[0]
         return app_id_state
 
-    def _mark_date_updated(self, app_id_state: AppIdState, p_date: date,
+    def _mark_date_updated(self, app_id_state: AppIdState, event_name: str, p_date: date,
                            now: Optional[datetime] = None):
-        logger.debug('Data for {} of {} is updated'.format(
-            p_date, app_id_state.app_id
+        logger.debug('Data for {} event {} of {} is updated'.format(
+            p_date, event_name, app_id_state.app_id
         ))
-        app_id_state.date_updates[p_date] = now or datetime.now()
+        if app_id_state.date_updates.get(event_name) is None:
+            app_id_state.date_updates[event_name] = dict()
+        app_id_state.date_updates[event_name][p_date] = now or datetime.now()
         self._save_state()
 
-    def _mark_date_archived(self, app_id_state: AppIdState, p_date: date):
+    def _mark_date_archived(self, app_id_state: AppIdState, event_name: str, p_date: date):
         logger.debug('Data for {} of {} is archived'.format(
             p_date, app_id_state.app_id
         ))
-        app_id_state.date_updates[p_date] = self.ARCHIVED_DATE
+        if app_id_state.date_updates.get(event_name) is None:
+            app_id_state.date_updates[event_name] = dict()
+        app_id_state.date_updates[event_name][p_date] = self.ARCHIVED_DATE
         self._save_state()
 
-    def _is_date_archived(self, app_id_state: AppIdState, p_date: date):
-        updated_at = app_id_state.date_updates.get(p_date)
+    def _is_date_archived(self, app_id_state: AppIdState, event_name: str, p_date: date):
+        if app_id_state.date_updates.get(event_name):
+            updated_at = app_id_state.date_updates.get(event_name).get(p_date)
+        else:
+            updated_at = None
         return updated_at is not None and updated_at == self.ARCHIVED_DATE
 
     def _finish_updates(self, now: datetime = None):
@@ -109,22 +119,26 @@ class Scheduler(object):
             sleep(wait_time.total_seconds())
 
     def _archive_old_dates(self, app_id_state: AppIdState):
-        for p_date, updated_at in app_id_state.date_updates.items():
-            if self._is_date_archived(app_id_state, p_date):
-                continue
-            last_event_date = datetime.combine(p_date, time.max)
-            fresh = updated_at - last_event_date < self._fresh_limit
-            if not fresh:
-                for source in self._definition.date_required_sources:
-                    yield UpdateRequest(source, app_id_state.app_id, p_date,
-                                        UpdateRequest.ARCHIVE)
-                self._mark_date_archived(app_id_state, p_date)
+        for event_name, event in app_id_state.date_updates.items():
+            for p_date, updated_at in event.items():
+                if self._is_date_archived(app_id_state, event_name, p_date):
+                    continue
+                last_event_date = datetime.combine(p_date, time.max)
+                fresh = updated_at - last_event_date < self._fresh_limit
+                if not fresh:
+                    for source in self._definition.date_required_sources:
+                        yield UpdateRequest(source, None, app_id_state.app_id, p_date,
+                                            UpdateRequest.ARCHIVE)
+                    self._mark_date_archived(app_id_state, event_name, p_date)
 
-    def _update_date(self, app_id_state: AppIdState, p_date: date,
+    def _update_date(self, event_name: str, app_id_state: AppIdState, p_date: date,
                      started_at: datetime) \
             -> Generator[UpdateRequest, None, None]:
         sources = self._definition.date_required_sources
-        updated_at = app_id_state.date_updates.get(p_date)
+        if app_id_state.date_updates.get(event_name):
+            updated_at = app_id_state.date_updates.get(event_name).get(p_date)
+        else:
+            updated_at = None
         last_event_date = datetime.combine(p_date, time.max)
         if updated_at:
             updated = started_at - updated_at < self._update_interval
@@ -132,21 +146,27 @@ class Scheduler(object):
                 return
         last_event_delta = (updated_at or started_at) - last_event_date
         for source in sources:
-            yield UpdateRequest(source, app_id_state.app_id, p_date,
+            yield UpdateRequest(source, event_name, app_id_state.app_id, p_date,
                                 UpdateRequest.LOAD_ONE_DATE)
-        self._mark_date_updated(app_id_state, p_date)
-
+        self._mark_date_updated(app_id_state, event_name, p_date)
+        
         fresh = last_event_delta < self._fresh_limit
         if not fresh:
             for source in sources:
-                yield UpdateRequest(source, app_id_state.app_id, p_date,
+                yield UpdateRequest(source, None, app_id_state.app_id, p_date,
                                     UpdateRequest.ARCHIVE)
-            self._mark_date_archived(app_id_state, p_date)
+            self._mark_date_archived(app_id_state, event_name, p_date)
 
     def _update_date_ignored_fields(self, app_id: str):
         for source in self._definition.date_ignored_sources:
-            yield UpdateRequest(source, app_id, None,
+            yield UpdateRequest(source, None, app_id, None,
                                 UpdateRequest.LOAD_DATE_IGNORED)
+
+    def _prepare_temporary_table(self, app_id_state: AppIdState, p_date: date):
+        sources = self._definition.date_required_sources
+        for source in sources:
+            yield UpdateRequest(source, None, app_id_state.app_id, p_date,
+                                UpdateRequest.PREPARE_DAILY_TABLE)
 
     def update_requests(self) \
             -> Generator[UpdateRequest, None, None]:
@@ -163,10 +183,15 @@ class Scheduler(object):
                 yield update_request
 
             for pd_date in pd.date_range(date_from, date_to):
-                p_date = pd_date.to_pydatetime().date()  # type: date
-                updates = self._update_date(app_id_state, p_date, started_at)
+                updates = self._prepare_temporary_table(app_id_state, pd_date)
                 for update_request in updates:
                     yield update_request
+                for event_name in self._event_names:
+                    p_date = pd_date.to_pydatetime().date()  # type: date
+                    logger.debug('Logging event: {} date: {}'.format(event_name, p_date))
+                    updates = self._update_date(event_name, app_id_state, p_date, started_at)
+                    for update_request in updates:
+                        yield update_request
 
             updates = self._update_date_ignored_fields(app_id_state.app_id)
             for update_request in updates:
