@@ -26,14 +26,16 @@ logger = logging.getLogger(__name__)
 class UpdateRequest(object):
     ARCHIVE = 'archive'
     LOAD_ONE_DATE = 'load_one_date'
+    LOAD_RANGE_DATES = 'load_range_dates'
     LOAD_DATE_IGNORED = 'load_date_ignored'
     PREPARE_DAILY_TABLE = 'prepare_daily_table' # Daily temporary table
 
-    def __init__(self, source: str, event_name: str, app_id: str, p_date: Optional[date],
+    def __init__(self, source: str, event_name: str, app_id: str, date_since: Optional[date], p_date: Optional[date],
                  update_type: str):
         self.source = source
         self.event_name = event_name
         self.app_id = app_id
+        self.date_since = date_since
         self.date = p_date
         self.update_type = update_type
 
@@ -127,12 +129,12 @@ class Scheduler(object):
                 fresh = updated_at - last_event_date < self._fresh_limit
                 if not fresh:
                     for source in self._definition.date_required_sources:
-                        yield UpdateRequest(source, None, app_id_state.app_id, p_date,
+                        yield UpdateRequest(source, None, app_id_state.app_id, None, p_date,
                                             UpdateRequest.ARCHIVE)
                     self._mark_date_archived(app_id_state, event_name, p_date)
 
-    def _update_date(self, event_name: str, app_id_state: AppIdState, p_date: date,
-                     started_at: datetime) \
+    def _update_dates(self, event_name: str, app_id_state: AppIdState, date_since: date, p_date: date,
+                      started_at: datetime) \
             -> Generator[UpdateRequest, None, None]:
         sources = self._definition.date_required_sources
         if app_id_state.date_updates.get(event_name):
@@ -146,27 +148,47 @@ class Scheduler(object):
                 return
         last_event_delta = (updated_at or started_at) - last_event_date
         for source in sources:
-            yield UpdateRequest(source, event_name, app_id_state.app_id, p_date,
-                                UpdateRequest.LOAD_ONE_DATE)
-        self._mark_date_updated(app_id_state, event_name, p_date)
+            yield UpdateRequest(source, event_name, app_id_state.app_id, date_since, p_date,
+                                UpdateRequest.LOAD_RANGE_DATES)
+
+        for pd_date in pd.date_range(date_since, p_date):
+            date = pd_date.to_pydatetime().date()
+            self._mark_date_updated(app_id_state, event_name, date)
         
         fresh = last_event_delta < self._fresh_limit
         if not fresh:
             for source in sources:
-                yield UpdateRequest(source, None, app_id_state.app_id, p_date,
+                yield UpdateRequest(source, None, app_id_state.app_id, None, p_date,
                                     UpdateRequest.ARCHIVE)
             self._mark_date_archived(app_id_state, event_name, p_date)
 
     def _update_date_ignored_fields(self, app_id: str):
         for source in self._definition.date_ignored_sources:
-            yield UpdateRequest(source, None, app_id, None,
+            yield UpdateRequest(source, None, app_id, None, None,
                                 UpdateRequest.LOAD_DATE_IGNORED)
 
     def _prepare_temporary_table(self, app_id_state: AppIdState, p_date: date):
         sources = self._definition.date_required_sources
         for source in sources:
-            yield UpdateRequest(source, None, app_id_state.app_id, p_date,
+            yield UpdateRequest(source, None, app_id_state.app_id, None, p_date,
                                 UpdateRequest.PREPARE_DAILY_TABLE)
+
+    def _update_dates_requests(self, app_id_state: AppIdState, date_until: date, date_since: date, started_at: datetime) \
+            -> Generator[UpdateRequest, None, None]:
+
+        updates = self._archive_old_dates(app_id_state)
+        for update_request in updates:
+            yield update_request
+
+        updates = self._prepare_temporary_table(app_id_state, date_until)
+        for update_request in updates:
+            yield update_request
+
+        for event_name in self._event_names:
+            logger.debug('Logging event: {} date since: {} date until: {}'.format(event_name, date_since, date_until))
+            updates = self._update_dates(event_name, app_id_state, date_since, date_until, started_at)
+            for update_request in updates:
+                yield update_request
 
     def update_requests(self) \
             -> Generator[UpdateRequest, None, None]:
@@ -175,23 +197,22 @@ class Scheduler(object):
         started_at = datetime.now()
         for app_id in self._app_ids:
             app_id_state = self._get_or_create_app_id_state(app_id)
-            date_to = started_at.date()
-            date_from = date_to - self._update_limit
 
-            updates = self._archive_old_dates(app_id_state)
+            # Load limit dates
+            update_date_until = started_at.date() - self._fresh_limit
+            update_date_since = update_date_until - self._update_limit - self._fresh_limit
+            updates = self._update_dates_requests(app_id_state, update_date_until, update_date_since, started_at)
             for update_request in updates:
                 yield update_request
+           
+            # Load fresh dates
+            # Disabled for range of dates loading
+            # fresh_date_until = started_at.date()
+            # fresh_date_since = update_date_until - self._update_limit
+            # updates = self._update_dates_requests(app_id_state, fresh_date_until, fresh_date_since, started_at)
+            # for update_request in updates:
+            #     yield update_request
 
-            for pd_date in pd.date_range(date_from, date_to):
-                updates = self._prepare_temporary_table(app_id_state, pd_date)
-                for update_request in updates:
-                    yield update_request
-                for event_name in self._event_names:
-                    p_date = pd_date.to_pydatetime().date()  # type: date
-                    logger.debug('Logging event: {} date: {}'.format(event_name, p_date))
-                    updates = self._update_date(event_name, app_id_state, p_date, started_at)
-                    for update_request in updates:
-                        yield update_request
 
             updates = self._update_date_ignored_fields(app_id_state.app_id)
             for update_request in updates:

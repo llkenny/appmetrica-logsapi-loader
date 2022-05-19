@@ -33,11 +33,11 @@ class UpdatesController(object):
         self._sources_collection = sources_collection
         self._db_controllers_collection = db_controllers_collection
 
-    def _load_into_table(self, app_id: str, date: Optional[datetime.date], event_name: str,
-                         table_suffix: str,
-                         processing_definition: ProcessingDefinition,
-                         loading_definition: LoadingDefinition,
-                         db_controller: DbController):
+    def _load_into_table_single_date(self, app_id: str, date: Optional[datetime.date], event_name: str,
+                                     table_suffix: str,
+                                     processing_definition: ProcessingDefinition,
+                                     loading_definition: LoadingDefinition,
+                                     db_controller: DbController):
         logger.info('Loading "{date}" "{event_name}" into "{suffix}" of "{source}" '
                     'for "{app_id}"'.format(
             date=date or 'latest',
@@ -48,6 +48,25 @@ class UpdatesController(object):
         ))
         self._updater.update(app_id, date, event_name, table_suffix, db_controller,
                              processing_definition, loading_definition)
+
+    def _load_into_table_date_range(self, app_id: str,
+                                    date_since: datetime.date, date_until: Optional[datetime.date],
+                                    event_name: str,
+                                    table_suffix: str,
+                                    processing_definition: ProcessingDefinition,
+                                    loading_definition: LoadingDefinition,
+                                    db_controller: DbController):
+        logger.info('Loading from "{date_since}" to {date_until} "{event_name}" into "{suffix}" of "{source}" '
+                    'for "{app_id}"'.format(
+                        date_since=date_since,
+                        date_until=date_until or 'latest',
+                        event_name=event_name,
+                        source=loading_definition.source_name,
+                        app_id=app_id,
+                        suffix=table_suffix
+                    ))
+        self._updater.update_range(app_id, date_since, date_until, event_name, table_suffix, db_controller,
+                                   processing_definition, loading_definition)
 
     def _archive(self, source: str, app_id: str, date: datetime.date,
                  table_suffix: str, db_controller: DbController):
@@ -65,6 +84,7 @@ class UpdatesController(object):
         source = update_request.source
         app_id = update_request.app_id
         event_name = update_request.event_name
+        date_since = update_request.date_since
         date = update_request.date
         update_type = update_request.update_type
         if date is not None:
@@ -80,15 +100,19 @@ class UpdatesController(object):
             self._db_controllers_collection.db_controller(source)
 
         if update_type == UpdateRequest.LOAD_ONE_DATE:
-            self._load_into_table(app_id, date, event_name, table_suffix,
-                                  processing_definition, loading_definition,
-                                  db_controller)
+            self._load_into_table_single_date(app_id, date, event_name, table_suffix,
+                                              processing_definition, loading_definition,
+                                              db_controller)
+        elif update_type == UpdateRequest.LOAD_RANGE_DATES:
+            self._load_into_table_date_range(app_id, date_since, date, event_name, table_suffix,
+                                            processing_definition, loading_definition,
+                                            db_controller)
         elif update_type == UpdateRequest.ARCHIVE:
             self._archive(source, app_id, date, table_suffix, db_controller)
         elif update_type == UpdateRequest.LOAD_DATE_IGNORED:
-            self._load_into_table(app_id, None, None, table_suffix,
-                                  processing_definition, loading_definition,
-                                  db_controller)
+            self._load_into_table_single_date(app_id, None, None, table_suffix,
+                                              processing_definition, loading_definition,
+                                              db_controller)
         elif update_type == UpdateRequest.PREPARE_DAILY_TABLE:
             self._prepare_temporary_table(table_suffix, db_controller)
 
@@ -99,9 +123,8 @@ class UpdatesController(object):
 
     def run(self):
         logger.info("Starting updating loop")
-        while True:
-            try:
-                self._step()
-            except Exception as e:
-                logger.warning(e)
-                time.sleep(10)
+        # Just one step for range of dates loading
+        try:
+            self._step()
+        except Exception as e:
+            logger.warning(e)

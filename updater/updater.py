@@ -109,3 +109,23 @@ class Updater(object):
                 is_loading_completed = True
             except LogsApiPartsCountError:
                 parts_count *= 2
+
+    def update_range(self, app_id: str,
+                     date_since: Optional[datetime.date], date_until: Optional[datetime.date],
+                     event_name: str,
+                     table_suffix: str, db_controller: DbController,
+                     processing_definition: ProcessingDefinition,
+                     loading_definition: LoadingDefinition):
+        since = datetime.datetime.combine(date_since, datetime.time.min)
+        until = datetime.datetime.combine(date_until, datetime.time.max)
+
+        parts_count = 1
+        is_loading_completed = False
+        while not is_loading_completed:
+            try:
+                self._try_update(app_id, since, until, event_name, table_suffix,
+                                 parts_count, db_controller,
+                                 processing_definition, loading_definition)
+                is_loading_completed = True
+            except LogsApiPartsCountError:
+                parts_count *= 2
