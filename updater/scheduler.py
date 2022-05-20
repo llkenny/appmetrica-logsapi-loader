@@ -200,7 +200,7 @@ class Scheduler(object):
 
             # Load limit dates
             update_date_until = started_at.date() - self._fresh_limit
-            update_date_since = update_date_until - self._update_limit
+            update_date_since = update_date_until - self._update_limit + self._fresh_limit
             updates = self._update_dates_requests(app_id_state, update_date_until, update_date_since, started_at)
             for update_request in updates:
                 yield update_request
