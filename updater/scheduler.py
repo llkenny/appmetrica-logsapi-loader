@@ -29,15 +29,16 @@ class UpdateRequest(object):
     LOAD_RANGE_DATES = 'load_range_dates'
     LOAD_DATE_IGNORED = 'load_date_ignored'
     PREPARE_DAILY_TABLE = 'prepare_daily_table' # Daily temporary table
-
+    
     def __init__(self, source: str, event_name: str, app_id: str, date_since: Optional[date], p_date: Optional[date],
-                 update_type: str):
+                 update_type: str, parts_counts=1):
         self.source = source
         self.event_name = event_name
         self.app_id = app_id
         self.date_since = date_since
         self.date = p_date
         self.update_type = update_type
+        self.parts_counts = parts_counts
 
 
 class Scheduler(object):
@@ -46,7 +47,7 @@ class Scheduler(object):
     def __init__(self, state_storage: StateStorage,
                  scheduling_definition: SchedulingDefinition,
                  app_ids: List[str], event_names: List[str], update_limit: timedelta,
-                 update_interval: timedelta, fresh_limit: timedelta):
+                 update_interval: timedelta, fresh_limit: timedelta, parts_count):
         self._state_storage = state_storage
         self._definition = scheduling_definition
         self._app_ids = app_ids
@@ -55,6 +56,7 @@ class Scheduler(object):
         self._update_interval = update_interval
         self._fresh_limit = fresh_limit
         self._state = None
+        self._parts_count = parts_count
 
     def _load_state(self):
         self._state = self._state_storage.load()
@@ -134,7 +136,7 @@ class Scheduler(object):
                     self._mark_date_archived(app_id_state, event_name, p_date)
 
     def _update_dates(self, event_name: str, app_id_state: AppIdState, date_since: date, p_date: date,
-                      started_at: datetime) \
+                      started_at: datetime, parts_count: int) \
             -> Generator[UpdateRequest, None, None]:
         sources = self._definition.date_required_sources
         if app_id_state.date_updates.get(event_name):
@@ -149,7 +151,8 @@ class Scheduler(object):
         last_event_delta = (updated_at or started_at) - last_event_date
         for source in sources:
             yield UpdateRequest(source, event_name, app_id_state.app_id, date_since, p_date,
-                                UpdateRequest.LOAD_RANGE_DATES)
+                                UpdateRequest.LOAD_RANGE_DATES,
+                                parts_count)
 
         for pd_date in pd.date_range(date_since, p_date):
             date = pd_date.to_pydatetime().date()
@@ -186,7 +189,7 @@ class Scheduler(object):
 
         for event_name in self._event_names:
             logger.debug('Logging event: {} date since: {} date until: {}'.format(event_name, date_since, date_until))
-            updates = self._update_dates(event_name, app_id_state, date_since, date_until, started_at)
+            updates = self._update_dates(event_name, app_id_state, date_since, date_until, started_at, self._parts_count)
             for update_request in updates:
                 yield update_request
 

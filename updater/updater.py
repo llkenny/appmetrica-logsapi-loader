@@ -93,13 +93,12 @@ class Updater(object):
     def update(self, app_id: str, date: Optional[datetime.date], event_name: str,
                table_suffix: str, db_controller: DbController,
                processing_definition: ProcessingDefinition,
-               loading_definition: LoadingDefinition):
+               loading_definition: LoadingDefinition, parts_count: int):
         since, until = None, None
         if date:
             since = datetime.datetime.combine(date, datetime.time.min)
             until = datetime.datetime.combine(date, datetime.time.max)
 
-        parts_count = 1
         is_loading_completed = False
         while not is_loading_completed:
             try:
@@ -115,11 +114,10 @@ class Updater(object):
                      event_name: str,
                      table_suffix: str, db_controller: DbController,
                      processing_definition: ProcessingDefinition,
-                     loading_definition: LoadingDefinition):
+                     loading_definition: LoadingDefinition, parts_count: int):
         since = datetime.datetime.combine(date_since, datetime.time.min)
         until = datetime.datetime.combine(date_until, datetime.time.max)
-
-        parts_count = 1
+        
         is_loading_completed = False
         while not is_loading_completed:
             try:

@@ -69,7 +69,8 @@ def main():
         update_interval=settings.UPDATE_INTERVAL,
         update_limit=settings.UPDATE_LIMIT,
         fresh_limit=settings.UPDATE_LIMIT_UNTIL,
-        scheduling_definition=sources_collection.scheduling_definition()
+        scheduling_definition=sources_collection.scheduling_definition(),
+        parts_count=settings.PARTS_COUNT
     )
     updates_controller = UpdatesController(
         scheduler=scheduler,

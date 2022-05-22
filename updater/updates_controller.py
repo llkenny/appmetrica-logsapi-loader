@@ -13,6 +13,7 @@
 import datetime
 import logging
 import time
+from turtle import update
 from typing import Optional
 
 from fields import SourcesCollection, ProcessingDefinition, LoadingDefinition
@@ -32,12 +33,13 @@ class UpdatesController(object):
         self._updater = updater
         self._sources_collection = sources_collection
         self._db_controllers_collection = db_controllers_collection
-
+        
     def _load_into_table_single_date(self, app_id: str, date: Optional[datetime.date], event_name: str,
                                      table_suffix: str,
                                      processing_definition: ProcessingDefinition,
                                      loading_definition: LoadingDefinition,
-                                     db_controller: DbController):
+                                     db_controller: DbController,
+                                     parts_count: int):
         logger.info('Loading "{date}" "{event_name}" into "{suffix}" of "{source}" '
                     'for "{app_id}"'.format(
             date=date or 'latest',
@@ -47,7 +49,7 @@ class UpdatesController(object):
             suffix=table_suffix
         ))
         self._updater.update(app_id, date, event_name, table_suffix, db_controller,
-                             processing_definition, loading_definition)
+                             processing_definition, loading_definition, parts_count)
 
     def _load_into_table_date_range(self, app_id: str,
                                     date_since: datetime.date, date_until: Optional[datetime.date],
@@ -55,7 +57,8 @@ class UpdatesController(object):
                                     table_suffix: str,
                                     processing_definition: ProcessingDefinition,
                                     loading_definition: LoadingDefinition,
-                                    db_controller: DbController):
+                                    db_controller: DbController,
+                                    parts_count: int):
         logger.info('Loading from "{date_since}" to {date_until} "{event_name}" into "{suffix}" of "{source}" '
                     'for "{app_id}"'.format(
                         date_since=date_since,
@@ -66,7 +69,7 @@ class UpdatesController(object):
                         suffix=table_suffix
                     ))
         self._updater.update_range(app_id, date_since, date_until, event_name, table_suffix, db_controller,
-                                   processing_definition, loading_definition)
+                                   processing_definition, loading_definition, parts_count)
 
     def _archive(self, source: str, app_id: str, date: datetime.date,
                  table_suffix: str, db_controller: DbController):
@@ -87,6 +90,7 @@ class UpdatesController(object):
         date_since = update_request.date_since
         date = update_request.date
         update_type = update_request.update_type
+        parts_count = update_request.parts_counts
         if date is not None:
             table_suffix = '{}_{}'.format(app_id, date.strftime('%Y%m%d'))
         else:
@@ -102,11 +106,11 @@ class UpdatesController(object):
         if update_type == UpdateRequest.LOAD_ONE_DATE:
             self._load_into_table_single_date(app_id, date, event_name, table_suffix,
                                               processing_definition, loading_definition,
-                                              db_controller)
+                                              db_controller, parts_count)
         elif update_type == UpdateRequest.LOAD_RANGE_DATES:
             self._load_into_table_date_range(app_id, date_since, date, event_name, table_suffix,
                                             processing_definition, loading_definition,
-                                            db_controller)
+                                            db_controller, parts_count)
         elif update_type == UpdateRequest.ARCHIVE:
             self._archive(source, app_id, date, table_suffix, db_controller)
         elif update_type == UpdateRequest.LOAD_DATE_IGNORED:

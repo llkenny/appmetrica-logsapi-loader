@@ -33,6 +33,7 @@ UPDATE_LIMIT = timedelta(days=int(environ.get('UPDATE_LIMIT', '30')))
 UPDATE_LIMIT_UNTIL = timedelta(days=int(environ.get('UPDATE_LIMIT_UNTIL', '7')))
 UPDATE_INTERVAL = timedelta(hours=int(environ.get('UPDATE_INTERVAL', '12')))
 REQUEST_CHUNK_ROWS = int(environ.get('REQUEST_CHUNK_ROWS', '25000'))
+PARTS_COUNT = int(environ.get('PARTS_COUNT', '1'))
 
 STATE_FILE_PATH = environ.get('STATE_FILE_PATH', DEFAULT_STATE_FILE_PATH)
 
