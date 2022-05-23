@@ -120,19 +120,32 @@ _postback_key = [
 _postbacks_source = Source("postbacks", "postbacks", "attempt_date", None,
                            _postback_key, False, _postback_fields)
 
-
-_event_fields = _system_defined_fields + _sdk_device_fields + _app_fields + [
+# Product specific _event_fields
+_event_fields = [
     required("event_timestamp", db_uint64("event_timestamp")),
-
-    optional("event_name", db_string("event_name")),
-    optional("event_json", db_string("event_json")),
-    optional("event_receive_timestamp", db_uint64("event_receive_timestamp")),
-
     required("event_date", db_date("event_date"), timestamp_to_date("event_timestamp")),
     optional("event_datetime", db_datetime("event_datetime"), timestamp_to_datetime("event_timestamp")),
-    optional("event_receive_date", db_date("event_receive_date"), timestamp_to_date("event_receive_timestamp")),
-    optional("event_receive_datetime", db_datetime("event_receive_datetime"), timestamp_to_datetime("event_receive_timestamp")),
+    optional("profile_id", db_string("profile_id")),
+    optional("event_name", db_string("event_name")),
+    optional("device_model", db_string("device_model")),
+    optional("event_json", db_string("event_json")),
+    optional("city", db_string("city")),
+    optional("os_name", db_string("os_name"))
 ]  # type: List[Field]
+
+
+# _event_fields = _system_defined_fields + _sdk_device_fields + _app_fields + [
+#     required("event_timestamp", db_uint64("event_timestamp")),
+
+#     optional("event_name", db_string("event_name")),
+#     optional("event_json", db_string("event_json")),
+#     optional("event_receive_timestamp", db_uint64("event_receive_timestamp")),
+
+#     required("event_date", db_date("event_date"), timestamp_to_date("event_timestamp")),
+#     optional("event_datetime", db_datetime("event_datetime"), timestamp_to_datetime("event_timestamp")),
+#     optional("event_receive_date", db_date("event_receive_date"), timestamp_to_date("event_receive_timestamp")),
+#     optional("event_receive_datetime", db_datetime("event_receive_datetime"), timestamp_to_datetime("event_receive_timestamp")),
+# ]  # type: List[Field]
 _event_key = [
     "event_name",
     "device_id_hash",
